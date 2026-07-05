@@ -25,7 +25,7 @@ While accessible, their current workflow is highly manual and prone to severe bo
 A traditional web app could technically solve this, but it introduces friction. Why are AI Agents the superior solution?
 
 * **Zero Learning Curve:** Customers already use LINE and chat platforms. Agents meet the customers exactly where they already are. There are no new apps to download or user interfaces to learn.
-* **Multilingual Natural Language:** The student community communicates in a mix of Burmese, Thai, and English. An AI agent seamlessly understands and replies in the customer's native language and script without requiring manual translation dropdowns.
+* **Multilingual Natural Language:** The Burmese student community primarily communicates in Burmese, with some preferring Thai or English. An AI agent seamlessly understands and replies in the customer's native language and script without requiring manual translation dropdowns.
 * **Automatic Coordination:** The system handles the flow between the customer and the kitchen automatically. No more manual forwarding of messages from the kitchen to the customer.
 * **Proactive Intelligence:** A traditional dashboard requires the owner to log in and check it. Our Owner Agent is *proactive*—it automatically analyzes sales and inventory, sending the owner a prioritized report of low-stock alerts and daily special recommendations without ever being asked.
 
