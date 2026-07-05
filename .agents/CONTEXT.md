@@ -142,3 +142,10 @@ Edit your .env file and set:
 GEMINI_API_KEY=your-key-here
 ```
 Never with a runnable command containing the actual key value.
+
+---
+
+## Rule 6 — API Call Permission Policy
+
+Coding agents (including Antigravity) **MUST NOT** make any outbound API calls or run any scripts/tests that communicate with external APIs (such as the Gemini API or the Telegram API) without requesting and receiving **explicit user permission first**. Always ask the user for permission before starting tests or commands that communicate over the network.
+
