@@ -33,7 +33,23 @@ A traditional web app could technically solve this, but it introduces friction. 
 
 ## Architecture
 
-Burma Bites is built on a highly robust **ADK 2.0 Graph Workflow**, routing messages between three specialized LLM agents via a centralized Model Context Protocol (MCP) server.
+Burma Bites is built on a highly robust **ADK 2.0 Graph Workflow**, routing messages between three specialized LLM agents via a centralized Model Context Protocol (MCP) server. The system is deployed as three separate Telegram bots — one per role — enforcing hard role separation at the interface level.
+
+```
+Telegram Interface (3 role-separated bots)
+    │
+    ├─ Customer Bot ──► Customer Agent
+    ├─ Kitchen Bot  ──► Kitchen Agent
+    └─ Owner Bot    ──► Owner Agent
+                              │
+                              ▼
+                    MCP Server (11 tools)
+                              │
+                    ┌─────────┴─────────┐
+                app/tools.py      SharedDict
+                              │
+               data/orders.json + inventory.json + sales.json
+```
 
 ### The Agents
 1. **Customer Agent (Front-of-house):** Handles multilingual NLU, answers menu and allergen questions, takes orders, and provides order status updates.
@@ -51,6 +67,12 @@ The ADK workflow utilizes a fast, deterministic **keyword-based router node** (p
 
 ### Proactive Execution
 In the Owner branch, the graph hits a deterministic `proactive_stock_check` Python node *before* hitting the Owner LLM. This guarantees that inventory is checked and alerts are injected into the session state every single time, solving the probabilistic nature of LLMs skipping tool calls.
+
+### Role Separation via Telegram Bots
+Burma Bites is deployed as three separate Telegram bots — one per role. A customer using the Customer Bot physically cannot call kitchen or owner tools. This is enforced at both the bot level (prefix injection) and the MCP level (tool_filter scoping), solving a real security problem that exists in the current LINE group chat workflow where there is no separation between who can see what.
+
+### Shared State via SharedDict
+Because ADK's MCP server spawns separate subprocesses for each agent, in-memory Python dictionaries cannot be shared across bots. Burma Bites implements a `SharedDict` class that persists all state to JSON files (`data/orders.json`, `data/inventory.json`, `data/sales.json`) with `fcntl.flock` file locking for process safety. When the Customer Bot places an order, the Kitchen Bot sees it instantly.
 
 ---
 
@@ -95,5 +117,8 @@ We learned that using an LLM to classify intent and route messages added unneces
 
 **Lesson 3: Guaranteeing Proactive Behavior**
 Instructing an LLM to "always check inventory" works most of the time, but LLMs are probabilistic—they will eventually skip the tool call if the context gets too long or if they hallucinate the answer. We learned that the best way to build a *proactive* agent is to combine deterministic code with LLM generation. By inserting a pure Python node into the ADK graph that checks inventory and injects the result into the session state *before* the Owner LLM runs, we guaranteed that the owner would receive critical low-stock alerts 100% of the time. The code provides the guarantee; the LLM provides the narrative.
+
+**Lesson 4: Cross-Process State Sharing**
+ADK's MCP server spawns isolated subprocesses for each agent. Without a shared state layer, each bot operated on separate in-memory data — orders placed by the Customer Bot were invisible to the Kitchen Bot. The SharedDict solution using file-locked JSON persistence solved this cleanly without introducing an external database dependency.
 
 Burma Bites proves that AI agents are not just for generating text—they are highly capable, secure workflow orchestrators that can bring order to chaotic real-world operations.
