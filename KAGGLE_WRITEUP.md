@@ -122,3 +122,9 @@ Instructing an LLM to "always check inventory" works most of the time, but LLMs 
 ADK's MCP server spawns isolated subprocesses for each agent. Without a shared state layer, each bot operated on separate in-memory data — orders placed by the Customer Bot were invisible to the Kitchen Bot. The SharedDict solution using file-locked JSON persistence solved this cleanly without introducing an external database dependency.
 
 Burma Bites proves that AI agents are not just for generating text—they are highly capable, secure workflow orchestrators that can bring order to chaotic real-world operations.
+
+---
+
+## About the Builder
+
+Burma Bites was built by a Burmese CS student studying at Rangsit University in Bangkok — someone who has personally seen these restaurants operate and watched owners struggle with LINE group chaos during lunch rush. This project isn't a hypothetical — it's a solution for a community I am part of.
