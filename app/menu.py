@@ -1,7 +1,25 @@
 # Copyright 2026 Burma Bites
 #
-# Shared in-memory menu and inventory store for Burma Bites restaurant system.
-# In production, replace with a database (e.g., Firestore, Cloud SQL).
+# Shared in-memory data layer for the Burma Bites restaurant system.
+#
+# ── DESIGN DECISION: IN-MEMORY STORE ────────────────────────────────────────
+# All state (menu, inventory, orders, sales) is kept in module-level Python
+# dicts and lists. This is intentional for a prototype/course demo:
+#   - Zero infrastructure dependency — no DB to spin up for local testing
+#   - Instant reset between playground sessions (process restart = clean state)
+#   - Trivial to inspect and modify during demos
+#
+# In production, these should be replaced:
+#   MENU       → Cloud Firestore or Cloud SQL (with admin UI for editing)
+#   INVENTORY  → Firestore (with real-time listeners for low-stock alerts)
+#   ORDERS     → Firestore (for multi-instance consistency)
+#   SALES_TODAY → BigQuery (for historical analytics and reporting)
+#
+# ── WHY SHARED MODULE-LEVEL STATE INSTEAD OF A CLASS? ───────────────────────
+# All three agents (customer, kitchen, owner) need to read and write the
+# same order book and inventory. Since they all run inside a single Python
+# process (the ADK playground), module-level globals are the simplest shared
+# memory mechanism. In a distributed deployment, replace with a real DB.
 
 from __future__ import annotations
 
@@ -11,14 +29,20 @@ from typing import Any
 # Menu definition
 # ---------------------------------------------------------------------------
 # Each item has:
-#   id           – unique short key
-#   name_en      – English name
-#   name_my      – Burmese name (Unicode)
-#   name_th      – Thai name
-#   category     – food | drink | side
-#   price_thb    – price in Thai Baht
-#   description  – short English description
-#   allergens    – list of common allergens
+#   id          – snake_case unique key, used as the foreign key in orders/inventory
+#   name_en     – English name for the LLM and English-speaking staff
+#   name_my     – Burmese name in Myanmar Unicode script (for Burmese customers)
+#   name_th     – Thai name (for Thai-speaking customers and menus)
+#   category    – "food" | "drink" | "side" (used for menu filtering)
+#   price_thb   – price in Thai Baht (the operating currency for Thailand)
+#   description – short English description fed to the customer agent for Q&A
+#   allergens   – list of allergen tags for customer safety queries
+#
+# WHY THREE-LANGUAGE NAMES?
+# Burma Bites serves a mixed customer base in Thailand. Burmese expat workers
+# may order in Burmese (မြန်မာဘာသာ), Thai locals in Thai (ภาษาไทย), and
+# tourists in English. Including all three names lets the Customer Agent
+# respond accurately in any language without hallucinating translations.
 
 MENU: list[dict[str, Any]] = [
     # ── MAIN DISHES ────────────────────────────────────────────────────────
@@ -101,7 +125,7 @@ MENU: list[dict[str, Any]] = [
         "category": "drink",
         "price_thb": 30,
         "description": "Fresh-pressed sugarcane juice, served chilled.",
-        "allergens": [],
+        "allergens": [],  # No common allergens
     },
     {
         "id": "young_coconut",
@@ -111,7 +135,7 @@ MENU: list[dict[str, Any]] = [
         "category": "drink",
         "price_thb": 45,
         "description": "Fresh young coconut water with coconut flesh.",
-        "allergens": [],
+        "allergens": [],  # No common allergens
     },
     # ── SIDES ──────────────────────────────────────────────────────────────
     {
@@ -136,13 +160,16 @@ MENU: list[dict[str, Any]] = [
     },
 ]
 
-# Build a quick lookup dict by id
+# Fast O(1) lookup by item ID — avoids linear scan of MENU on every order line.
+# Built once at module load; not mutated at runtime.
 MENU_BY_ID: dict[str, dict[str, Any]] = {item["id"]: item for item in MENU}
 
 # ---------------------------------------------------------------------------
 # In-memory inventory (units available to sell today)
 # ---------------------------------------------------------------------------
-# Keys match MENU item IDs. Values are current stock counts.
+# Keys must exactly match MENU item IDs — any mismatch causes silent "sold out"
+# responses from the Customer Agent (INVENTORY.get(item_id, 0) returns 0).
+# In production: load from Firestore and subscribe to real-time updates.
 INVENTORY: dict[str, int] = {
     "mohinga": 30,
     "laphet_thoke": 25,
@@ -157,30 +184,54 @@ INVENTORY: dict[str, int] = {
     "samosa": 30,
 }
 
-# Threshold below which the owner agent should raise a low-stock alert
+# WHY 5 AS THE LOW_STOCK_THRESHOLD?
+# 5 portions is roughly one busy lunch rush for a single dish at a small
+# restaurant. Alerting at 5 gives the owner time to restock before running out.
+# This is a business rule, not a technical constant — make it configurable
+# (e.g., via env var or Firebase Remote Config) before going to production.
 LOW_STOCK_THRESHOLD = 5
 
 # ---------------------------------------------------------------------------
-# In-memory order book  {order_id -> order_dict}
+# Order book  {order_id → order_dict}
 # ---------------------------------------------------------------------------
 import uuid
 from datetime import datetime
 
-# Order statuses
-STATUS_RECEIVED  = "received"
-STATUS_PREPARING = "preparing"
-STATUS_READY     = "ready"
-STATUS_SERVED    = "served"
-STATUS_CANCELLED = "cancelled"
+# Status constants — defined here so they can be imported by tools.py and
+# referenced without hardcoding string literals throughout the codebase.
+# WHY NOT AN ENUM? The MCP layer and LLM both work with plain strings.
+# Converting to/from an Enum adds overhead and complexity for no safety gain
+# in a string-dominated protocol like MCP.
+STATUS_RECEIVED  = "received"    # Order placed, not yet seen by kitchen
+STATUS_PREPARING = "preparing"   # Kitchen has acknowledged and started cooking
+STATUS_READY     = "ready"       # Food is plated, waiting for service staff
+STATUS_SERVED    = "served"      # Food delivered to the customer's table
+STATUS_CANCELLED = "cancelled"   # Order cancelled (e.g. item unavailable)
 
 ORDERS: dict[str, dict[str, Any]] = {}
 
-# Cumulative sales ledger  {item_id -> total_sold_today}
+# SALES_TODAY accumulates item quantities sold within the current process session.
+# Used by get_sales_summary() and suggest_daily_special() (high stock = promote it).
+# Resets on process restart — for real persistence, write to a daily BigQuery table.
 SALES_TODAY: dict[str, int] = {}
 
 
 def create_order(items: list[dict[str, Any]], table_number: str | None = None) -> dict[str, Any]:
-    """Create a new order and deduct from inventory."""
+    """Create a new order, deduct from inventory, and record the sale.
+
+    WHY DEDUCT INVENTORY HERE (IN THE DATA LAYER) RATHER THAN IN TOOLS?
+    Inventory deduction is an atomic side effect of placing an order. Doing it
+    here ensures it happens exactly once, regardless of which code path called
+    create_order. If we did it in tools.py or mcp_server.py, a future caller
+    of create_order might forget to deduct, causing inventory inconsistency.
+
+    CONCURRENCY NOTE: Python's GIL makes simple dict updates effectively atomic
+    for our single-process in-memory store. In a production DB, use a
+    transaction to prevent double-deduction on concurrent order placement.
+    """
+    # UUID[:8] gives an 8-char hex ID. Short enough for staff to read aloud
+    # ("Order A1B2C3D4 is ready") but long enough to avoid collisions in a
+    # small restaurant context (~4 billion combinations).
     order_id = str(uuid.uuid4())[:8].upper()
     total_thb = 0
     line_items = []
@@ -200,9 +251,9 @@ def create_order(items: list[dict[str, Any]], table_number: str | None = None) -
             "price_thb": menu_item["price_thb"],
             "subtotal_thb": subtotal,
         })
-        # Deduct inventory
+        # Deduct from inventory — floor at 0 to prevent negative stock counts.
         INVENTORY[item_id] = max(0, INVENTORY.get(item_id, 0) - quantity)
-        # Record sale
+        # Accumulate in the daily sales ledger for analytics.
         SALES_TODAY[item_id] = SALES_TODAY.get(item_id, 0) + quantity
 
     order = {
@@ -210,7 +261,7 @@ def create_order(items: list[dict[str, Any]], table_number: str | None = None) -
         "table":       table_number or "walk-in",
         "items":       line_items,
         "total_thb":   total_thb,
-        "status":      STATUS_RECEIVED,
+        "status":      STATUS_RECEIVED,  # All new orders start in "received" state
         "created_at":  datetime.now().isoformat(),
         "updated_at":  datetime.now().isoformat(),
     }
@@ -219,7 +270,13 @@ def create_order(items: list[dict[str, Any]], table_number: str | None = None) -
 
 
 def update_order_status(order_id: str, new_status: str) -> dict[str, Any]:
-    """Update the status of an existing order."""
+    """Update the status of an existing order and record the change timestamp.
+
+    WHY STORE updated_at?
+    The Kitchen Agent can use this to identify stale orders (e.g., an order
+    that has been in "received" state for > N minutes). In the current demo
+    this is a display field; in production it would drive SLA alerts.
+    """
     if order_id not in ORDERS:
         raise ValueError(f"Order {order_id} not found.")
     valid = {STATUS_RECEIVED, STATUS_PREPARING, STATUS_READY, STATUS_SERVED, STATUS_CANCELLED}
@@ -231,7 +288,13 @@ def update_order_status(order_id: str, new_status: str) -> dict[str, Any]:
 
 
 def get_low_stock_items(threshold: int = LOW_STOCK_THRESHOLD) -> list[dict[str, Any]]:
-    """Return menu items whose inventory is at or below threshold."""
+    """Return all menu items whose current stock is at or below threshold.
+
+    WHY IS THIS A FREE FUNCTION (NOT INLINED IN tools.py)?
+    It is called by both the owner tools (check_inventory) and the proactive
+    stock check node in agent.py. Centralizing the logic here ensures both
+    callers use identical threshold logic and return the same data shape.
+    """
     low = []
     for item_id, count in INVENTORY.items():
         if count <= threshold:

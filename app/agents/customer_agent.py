@@ -1,11 +1,45 @@
 # Copyright 2026 Burma Bites
 #
-# Customer Agent — takes natural language orders in Burmese, Thai, or English,
-# answers menu questions, and places orders.
+# Customer Agent — multilingual front-of-house agent.
+#
+# ── ROLE IN THE SYSTEM ──────────────────────────────────────────────────────
+# This is the only agent that interacts directly with paying customers.
+# Its job is natural language understanding (NLU) across three languages,
+# menu navigation, and the critical order-taking flow.
+#
+# It is intentionally the DEFAULT branch in the router (agent.py) — most
+# restaurant messages come from customers, so routing to this agent when
+# intent is ambiguous is the correct safe default.
+#
+# ── WHY THESE FOUR TOOLS AND NO OTHERS? ─────────────────────────────────────
+# | Tool               | Why the customer agent needs it         |
+# |--------------------|------------------------------------------|
+# | list_menu          | Browse the menu by category              |
+# | get_item_details   | Answer allergen and ingredient questions |
+# | place_order        | Submit confirmed orders to the kitchen   |
+# | get_order_status   | Answer "where is my food?" queries       |
+#
+# The customer agent CANNOT call update_kitchen_order_status — that would
+# let a customer mark their own food as "served" before it arrives, or
+# even cancel another table's order. Tool scoping (via McpToolset.tool_filter
+# in agent.py) enforces this at the MCP protocol level, not just by instruction.
+#
+# ── WHY output_schema (STRUCTURED OUTPUT)? ──────────────────────────────────
+# ADK's output_schema forces the LLM to produce a Pydantic-validated JSON
+# object instead of free-form text. This gives us:
+#   1. Reliable extraction of order_id for downstream processing
+#   2. The language_detected field for analytics and eval datasets
+#   3. The action field for routing/eval grading (did the agent place an order?)
+# The structured output is stored in session state under output_key="customer_result"
+# and read by format_customer_response in agent.py.
 
 from google.adk.agents import LlmAgent
 from pydantic import BaseModel
 
+# Direct tool imports are used here at agent definition time.
+# NOTE: agent.py OVERRIDES these with McpToolset after importing this module.
+# The imports here are kept for IDE type-checking and test environments where
+# the MCP server is not running.
 from ..tools import (
     get_item_details,
     get_order_status,
@@ -19,24 +53,40 @@ from ..tools import (
 # ---------------------------------------------------------------------------
 
 class CustomerAgentOutput(BaseModel):
-    """Structured result from the Customer Agent."""
+    """Structured result from the Customer Agent.
+
+    WHY PYDANTIC INSTEAD OF A PLAIN DICT?
+    Pydantic gives us runtime validation with clear error messages if the LLM
+    returns a malformed response. ADK also uses the schema to construct the
+    JSON format instruction appended to the agent's system prompt, which
+    improves LLM compliance with the output structure.
+    """
     action: str
     """One of: "order_placed", "question_answered", "order_status_checked",
-    "browsing", "farewell"."""
+    "browsing", "farewell". Used by eval graders to verify correct agent behavior."""
 
     order_id: str | None = None
-    """The order ID if an order was successfully placed, else None."""
+    """The order ID if an order was successfully placed, else None.
+    Downstream systems (e.g., kitchen display) can extract this from session state."""
 
     message_to_customer: str
-    """The final natural-language response to show/speak to the customer."""
+    """The final natural-language response to show/speak to the customer.
+    This is the ONLY field surfaced to the customer — all other fields are
+    internal. format_customer_response in agent.py extracts this field."""
 
     language_detected: str = "en"
-    """ISO 639-1 code of the language the customer used: 'en', 'my', or 'th'."""
+    """ISO 639-1 code of the language the customer used: 'en', 'my', or 'th'.
+    Used in eval analysis to verify multilingual handling is working correctly."""
 
 
 # ---------------------------------------------------------------------------
 # Agent definition
 # ---------------------------------------------------------------------------
+# WHY gemini-3.1-flash-lite?
+# The customer interaction requires NLU, multilingual generation, and some
+# reasoning about menu items and allergens — but NOT complex multi-step planning.
+# Flash-Lite provides sufficient capability at low latency (important for live
+# customer-facing interactions) and low cost (many messages per service shift).
 
 customer_agent = LlmAgent(
     name="customer_agent",
@@ -95,6 +145,11 @@ a small Burmese restaurant in Thailand.
 - NEVER share internal order IDs of OTHER tables.
 """,
     output_schema=CustomerAgentOutput,
+    # output_key stores the structured output in session state under this key.
+    # format_customer_response in agent.py reads ctx.state["customer_result"]
+    # to extract message_to_customer for the user-facing Content event.
     output_key="customer_result",
+    # Tools are overridden in agent.py with McpToolset after this module loads.
+    # Listed here for IDE support and direct unit test invocation.
     tools=[list_menu, get_item_details, place_order, get_order_status],
 )

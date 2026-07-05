@@ -1,11 +1,42 @@
 # Copyright 2026 Burma Bites
 #
-# Kitchen Agent — receives confirmed orders, manages their lifecycle status
-# (received → preparing → ready → served).
+# Kitchen Agent — operational order lifecycle manager.
+#
+# ── ROLE IN THE SYSTEM ──────────────────────────────────────────────────────
+# This agent represents the kitchen staff (cooks, kitchen manager). It never
+# talks to customers — it talks to whoever is managing the kitchen: a tablet
+# mounted on the pass, a kitchen display system, or the owner checking tickets.
+#
+# It is activated when the router (agent.py) detects kitchen-staff vocabulary:
+# "preparing", "ready", "kitchen", "mark order", etc.
+#
+# ── WHY THESE THREE TOOLS AND NO OTHERS? ─────────────────────────────────────
+# | Tool                         | Why the kitchen needs it                  |
+# |------------------------------|-------------------------------------------|
+# | list_pending_orders          | See the active work queue (FIFO)          |
+# | update_kitchen_order_status  | The core kitchen action — progress orders |
+# | get_all_orders               | Full history for shift handover/disputes  |
+#
+# The kitchen agent CANNOT:
+#   - place_order        → bypasses customer confirmation; creates audit problems
+#   - check_inventory    → not kitchen's responsibility in this system
+#   - restock_item       → owner-only action (business authorization required)
+#   - get_sales_summary  → owner-level business data; kitchen staff don't need it
+#
+# Tool scoping in agent.py (McpToolset.tool_filter) enforces these restrictions
+# at the MCP layer — the LLM never even sees those tool signatures.
+#
+# ── WHY output_schema? ───────────────────────────────────────────────────────
+# Structured output lets the format_kitchen_response node in agent.py extract
+# the "summary" field (a short human-readable description of what happened)
+# and the updated_order_id/new_status fields for downstream processing or
+# eval grading (e.g., "did the agent correctly transition order X to 'ready'?").
 
 from google.adk.agents import LlmAgent
 from pydantic import BaseModel
 
+# Direct tool imports for IDE support and test environments.
+# Overridden in agent.py with McpToolset after module import.
 from ..tools import (
     get_all_orders,
     list_pending_orders,
@@ -18,23 +49,37 @@ from ..tools import (
 # ---------------------------------------------------------------------------
 
 class KitchenAgentOutput(BaseModel):
-    """Structured result from the Kitchen Agent."""
+    """Structured result from the Kitchen Agent.
+
+    The summary field is surfaced to the kitchen staff (or whoever triggered
+    the kitchen agent) via format_kitchen_response. The other fields support
+    eval grading and downstream automation.
+    """
     action: str
-    """One of: "status_updated", "orders_listed", "no_action"."""
+    """One of: "status_updated", "orders_listed", "no_action".
+    Used by eval graders to verify the agent took the expected action."""
 
     updated_order_id: str | None = None
-    """The order ID that was updated, if any."""
+    """The order ID that was updated, if any. Enables downstream systems
+    (e.g., a customer notification service) to react to status changes."""
 
     new_status: str | None = None
-    """The new status of the updated order, if any."""
+    """The new status of the updated order ("preparing", "ready", "served",
+    "cancelled"). Used by eval graders to verify correct status transitions."""
 
     summary: str
-    """Human-readable summary of what was done (for logs/owner visibility)."""
+    """Human-readable summary of what the kitchen agent did this turn.
+    This is the only field shown to the user via format_kitchen_response."""
 
 
 # ---------------------------------------------------------------------------
 # Agent definition
 # ---------------------------------------------------------------------------
+# WHY gemini-3.1-flash-lite?
+# Kitchen operations are structured and well-defined — there is very little
+# ambiguity about what "mark order A1B2 as ready" means. Flash-Lite handles
+# this with low latency, which matters for kitchen throughput during busy
+# service periods when multiple status updates may arrive in quick succession.
 
 kitchen_agent = LlmAgent(
     name="kitchen_agent",
@@ -70,8 +115,8 @@ You are the **Kitchen Manager** for Burma Bites (ဗမာဘိုက်).
   any       → cancelled  (only if necessary)
 
 ## Tools
-- list_pending_orders   — see all active orders
-- get_all_orders        — see full order history
+- list_pending_orders   — see all active orders (FIFO, oldest first)
+- get_all_orders        — see full order history (for shift handover)
 - update_kitchen_order_status — change an order's status
 
 ## Tone
@@ -86,6 +131,8 @@ You are the **Kitchen Manager** for Burma Bites (ဗမာဘိုက်).
 - Always use the exact 8-character order ID returned by the system.
 """,
     output_schema=KitchenAgentOutput,
+    # output_key stores structured output in session state for format_kitchen_response.
     output_key="kitchen_result",
+    # Tools are overridden in agent.py with McpToolset after this module loads.
     tools=[list_pending_orders, update_kitchen_order_status, get_all_orders],
 )
