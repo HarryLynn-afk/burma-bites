@@ -38,48 +38,71 @@ Small Burmese restaurants near Rangsit University in Bangkok serve a community o
 ## Architecture
 
 ```
-                         ┌──────────────────────────────────────────┐
-                         │         Burma Bites Workflow              │
-                         │         (ADK 2.0 Graph / Workflow)        │
-                         │                                           │
-     User message ──────►│  route_request                            │
-                         │      │                                    │
-                         │      ├── "customer" ─► Customer Agent     │
-                         │      │                  · list_menu        │
-                         │      │                  · get_item_details │
-                         │      │                  · place_order      │
-                         │      │                  · get_order_status │
-                         │      │                                    │
-                         │      ├── "kitchen"  ─► Kitchen Agent      │
-                         │      │                  · list_pending     │
-                         │      │                  · update_status    │
-                         │      │                  · get_all_orders   │
-                         │      │                                    │
-                         │      └── "owner"    ─► Stock Check ──►    │
-                         │                         Owner Agent        │
-                         │                          · check_inventory │
-                         │                          · get_sales       │
-                         │                          · suggest_special │
-                         │                          · restock_item    │
-                         └─────────────────┬────────────────────────┘
-                                           │ McpToolset (stdio)
-                                           ▼
-                         ┌──────────────────────────────────────────┐
-                         │         app/mcp_server.py                 │
-                         │         (FastMCP — stdio transport)       │
-                         │                                           │
-                         │  Input validation layer (STRIDE rules)    │
-                         │         │                                 │
-                         │         ▼                                 │
-                         │      app/tools.py  ←──  app/menu.py       │
-                         │      (business logic)   (in-memory store)  │
-                         └──────────────────────────────────────────┘
+                             ┌─────────────────────────────────┐
+                             │       Telegram Client Layer     │
+                             │ (Customer, Kitchen, Owner Bots) │
+                             └────────────────┬────────────────┘
+                                              │ Polling / Webhook
+                                              ▼
+                             ┌─────────────────────────────────┐
+                             │        app/telegram_bots.py     │
+                             │   (Enforces bot-level scoping)  │
+                             └────────────────┬────────────────┘
+                                              │ new_message
+                                              ▼
+                          ┌──────────────────────────────────────────┐
+                          │         Burma Bites Workflow              │
+                          │         (ADK 2.0 Graph / Workflow)        │
+                          │                                           │
+      User message ──────►│  route_request                            │
+                          │      │                                    │
+                          │      ├── "customer" ─► Customer Agent     │
+                          │      │                  · list_menu        │
+                          │      │                  · get_item_details │
+                          │      │                  · place_order      │
+                          │      │                  · get_order_status │
+                          │      │                                    │
+                          │      ├── "kitchen"  ─► Kitchen Agent      │
+                          │      │                  · list_pending     │
+                          │      │                  · update_status    │
+                          │      │                  · get_all_orders   │
+                          │      │                                    │
+                          │      └── "owner"    ─► Stock Check ──►    │
+                          │                         Owner Agent        │
+                          │                          · check_inventory │
+                          │                          · get_sales       │
+                          │                          · suggest_special │
+                          │                          · restock_item    │
+                          └─────────────────┬────────────────────────┘
+                                            │ McpToolset (stdio)
+                                            ▼
+                          ┌──────────────────────────────────────────┐
+                          │         app/mcp_server.py                 │
+                          │         (FastMCP — stdio transport)       │
+                          │                                           │
+                          │  Input validation layer (STRIDE rules)    │
+                          │         │                                 │
+                          │         ▼                                 │
+                          │      app/tools.py   ←──   app/menu.py     │
+                          │      (business logic)   (SharedDict DB)   │
+                          └──────────────────────────────────────────┘
 ```
 
 **Routing logic** (keyword-based in `app/agent.py → route_request`):
 - Kitchen words → Kitchen Agent (`kitchen`, `preparing`, `mark order`, ...)
 - Owner words → Owner Agent (`inventory`, `sales`, `restock`, `specials`, ...)
 - Everything else → Customer Agent (default)
+
+---
+
+## Live Demo via Telegram
+
+Burma Bites supports running 3 separate Telegram bots concurrently. This separation guarantees strong **role isolation** by design:
+- **Customer Bot** (`@burma_bites_customer_bot`): Customers can browse the menu, ask about ingredients/allergens, place orders, and check their order status. It has no physical way to access kitchen commands or owner metrics.
+- **Kitchen Bot** (`@burma_bites_kitchen_bot`): Kitchen staff can view the pending order queue and transition orders through states (e.g., preparing → ready → served).
+- **Owner Bot** (`@burma_bites_owner_bot`): Enforces executive-level access to check inventory stock levels, view daily sales revenue summaries, configure specials, and restock items.
+
+Each bot is isolated by its own unique Telegram bot token, ensuring customers cannot spoof their credentials to access owner or kitchen systems.
 
 ---
 
@@ -91,20 +114,31 @@ uv tool install google-agents-cli   # one-time
 agents-cli install                  # installs .venv
 ```
 
-**Step 2 — Configure your API key**
+**Step 2 — Configure your API key and Telegram Bot tokens**
 ```bash
 cp .env.example .env
-# Edit .env and set GEMINI_API_KEY=your-key-here
-# Get a key at: https://aistudio.google.com/app/apikey
+# Edit .env and configure:
+#   1. GEMINI_API_KEY=your-key-here
+#   2. CUSTOMER_BOT_TOKEN, KITCHEN_BOT_TOKEN, and OWNER_BOT_TOKEN
 ```
 
-**Step 3 — Launch the playground**
+**Step 3 — Launch the system**
+
+Choose one of the following options:
+
+### Option A (Developer UI & Playground)
+Run the ADK local developer UI:
 ```bash
 agents-cli playground
-# → http://127.0.0.1:8080/dev-ui/?app=app
+# → Launching developer playground at http://127.0.0.1:8080/dev-ui/?app=app
 ```
 
-> For full environment setup, troubleshooting, and production deployment see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+### Option B (Telegram Interface)
+Run the Telegram bot server to launch all three bots concurrently:
+```bash
+uv run python -m app.run_telegram
+```
+
 
 ---
 
@@ -131,12 +165,18 @@ burma-bites/
 │   ├── agent.py                # Root Workflow — routing + graph edges
 │   ├── mcp_server.py           # Standalone MCP server (11 validated tools)
 │   ├── tools.py                # Business logic for all tools
-│   ├── menu.py                 # Menu data, inventory, and order store
+│   ├── menu.py                 # Menu data, inventory, and order store (SharedDict DB)
+│   ├── telegram_bots.py        # Scope-enforcing Telegram bot application logic
+│   ├── run_telegram.py         # Entrypoint to run all 3 bots concurrently
 │   ├── agents/
 │   │   ├── customer_agent.py   # Multilingual front-of-house agent
 │   │   ├── kitchen_agent.py    # Order lifecycle manager
 │   │   └── owner_agent.py      # Proactive BI / inventory agent
 │   └── app_utils/              # Telemetry, A2A, FastAPI wiring
+├── data/                       # Local database directory (JSON files, gitignored)
+│   ├── orders.json             # Dynamic SharedDict order book database
+│   ├── inventory.json          # Dynamic SharedDict inventory database
+│   └── sales.json              # Dynamic SharedDict daily sales ledger
 ├── scripts/
 │   ├── pre-commit.sh           # Semgrep secrets scanner (versioned source)
 │   └── install-hooks.sh        # One-command hook installation

@@ -1,4 +1,11 @@
 # Copyright 2026 Burma Bites
+"""
+Main Entrypoint for Burma Bites Telegram Bot Server.
+
+Concurrently runs three separate Telegram bots (Customer, Kitchen, Owner) in an asyncio event loop,
+providing complete role isolation. Each bot connects to its own scoped ADK workflow session.
+SharedDict (in app/menu.py) enables safe state sharing across their isolated tool subprocesses.
+"""
 import asyncio
 import logging
 import os

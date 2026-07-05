@@ -1,4 +1,28 @@
 # Copyright 2026 Burma Bites
+"""
+Telegram Bot Application Logic for Burma Bites.
+
+This module wires up the Telegram API handlers to the ADK Multi-Agent Workflow runner.
+
+KEY ARCHITECTURAL CONCEPTS DEMONSTRATED:
+1. Role Separation (3 Bots):
+   We run three separate Telegram bot instances concurrently, each mapped to a specific API token.
+   This enforces a physical security boundary between roles: a customer physically cannot invoke
+   kitchen status changes or owner BI metrics because their client only connects to the Customer Bot,
+   which utilizes an McpToolset scoped strictly to front-of-house tools.
+   
+2. Prefix Routing:
+   The ADK root Workflow uses a router node ('route_request') to decide which branch to activate.
+   To bypass natural language classification ambiguity for operational staff, the Kitchen Bot
+   automatically prepends a "kitchen:" prefix, and the Owner Bot automatically prepends an "owner:"
+   prefix. The router node uses these prefixes to route execution to the respective agent node.
+
+3. SharedDict Database Layer:
+   Because ADK executes tools inside separate subprocesses spawned via the stdio transport parameters,
+   the agents run in isolated OS processes and cannot share in-memory globals. SharedDict (in menu.py)
+   resolves this by writing transactional data to files on disk (data/*.json) with fcntl.flock file locking,
+   enabling process-safe, concurrent state sharing across all three bot runs.
+"""
 import json
 import logging
 from telegram import Update

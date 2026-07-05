@@ -26,26 +26,24 @@ Copy `.env.example` to `.env` and fill in the values before running anything.
 cp .env.example .env
 ```
 
-### Option A — Google AI Studio (simplest for local dev)
+The system requires **5 core environment variables** to function properly in local production mode:
 
 ```bash
 # .env  ← edit this file in your editor, never via export commands
+
+# ── Gemini API configuration ──
 GEMINI_API_KEY=your-api-key-here           # Get from https://aistudio.google.com/app/apikey
 GOOGLE_GENAI_USE_ENTERPRISE=FALSE
+
+# ── Telegram Bot API configuration ──
+CUSTOMER_BOT_TOKEN=123456789:ABC...        # Token from @BotFather for Customer Bot
+KITCHEN_BOT_TOKEN=123456789:ABC...         # Token from @BotFather for Kitchen Bot
+OWNER_BOT_TOKEN=123456789:ABC...           # Token from @BotFather for Owner Bot
 ```
 
-> ⚠️ **NEVER** run `export GEMINI_API_KEY=...` in the terminal.
-> Shell history permanently stores that value. Always edit `.env` directly.
-
-### Option B — Vertex AI (GCP project required)
-
-```bash
-# .env
-GOOGLE_GENAI_USE_VERTEXAI=true
-GOOGLE_CLOUD_PROJECT=your-gcp-project-id
-GOOGLE_CLOUD_LOCATION=global
-```
-
+> ⚠️ **NEVER** run `export GEMINI_API_KEY=...` or `export BOT_TOKEN=...` in the terminal.
+> Shell history permanently stores those values. Always edit `.env` directly.
+>
 > **Security:** `.env` is in `.gitignore`. Never commit real credentials.
 > See `.agents/CONTEXT.md` Rule 1 for the full secrets policy.
 
@@ -135,15 +133,36 @@ uv run pytest tests/unit tests/integration
 
 ## Running with Telegram Bots
 
-Burma Bites supports running 3 separate Telegram bots concurrently, one for each agent role.
+Burma Bites supports running 3 separate Telegram bots concurrently. This role separation guarantees that:
+- Customers cannot access kitchen order management or owner metrics (enforced by bot-token level validation).
+- Kitchen staff cannot place orders or view owner metrics.
+- Owners can proactively audit inventory, specials, and restock.
 
+### Telegram Bot Setup
+1. Message `@BotFather` on Telegram.
+2. Create 3 bots and obtain their API tokens:
+   - Customer Bot (e.g. `@burma_bites_customer_bot`)
+   - Kitchen Bot (e.g. `@burma_bites_kitchen_bot`)
+   - Owner Bot (e.g. `@burma_bites_owner_bot`)
+3. Add the tokens to your `.env` file:
+   ```bash
+   CUSTOMER_BOT_TOKEN=8993084593:AAFlom...
+   KITCHEN_BOT_TOKEN=8847668797:AAHI2w...
+   OWNER_BOT_TOKEN=8741457722:AAH0B7...
+   ```
+
+### Shared Database Layer (SharedDict)
+Since ADK runs tools in isolated subprocesses, the application uses `SharedDict` (implemented in `app/menu.py`) to share data across processes. 
+- It stores data dynamically in the `data/` directory:
+  * `data/orders.json` — orders book
+  * `data/inventory.json` — food inventory stock levels
+  * `data/sales.json` — daily sales records
+- **Process & Thread Safety:** Reads and writes to these files are locked using `fcntl.flock` to prevent race conditions during concurrent orders.
+- **Git Ignore policy:** The contents of the `data/` directory (specifically `data/*.json`) are ignored in `.gitignore` to prevent committing transactional runtime data to GitHub.
+
+### Start the bots
+To start all three bots concurrently in asyncio:
 ```bash
-# 1. Add your 3 bot tokens to .env:
-# CUSTOMER_BOT_TOKEN=...
-# KITCHEN_BOT_TOKEN=...
-# OWNER_BOT_TOKEN=...
-
-# 2. Run the Telegram server (this starts all 3 bots using asyncio)
 uv run python -m app.run_telegram
 ```
 
