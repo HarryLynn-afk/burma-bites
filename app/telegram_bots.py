@@ -48,7 +48,7 @@ async def process_agent_message(update: Update, prefix: str):
             session_id=session_id
         ):
             if event.content and event.content.parts:
-                reply_text = "".join(p.text for p in event.content.parts if hasattr(p, "text"))
+                reply_text = "".join(p.text for p in event.content.parts if hasattr(p, "text") and p.text)
                 if reply_text.strip():
                     await update.message.reply_text(reply_text)
                     
