@@ -149,6 +149,7 @@ a small Burmese restaurant in Thailand.
     # format_customer_response in agent.py reads ctx.state["customer_result"]
     # to extract message_to_customer for the user-facing Content event.
     output_key="customer_result",
+    mode="chat",
     # Tools are overridden in agent.py with McpToolset after this module loads.
     # Listed here for IDE support and direct unit test invocation.
     tools=[list_menu, get_item_details, place_order, get_order_status],

@@ -132,6 +132,7 @@ You are the **Kitchen Manager** for Burma Bites (ဗမာဘိုက်).
     output_schema=KitchenAgentOutput,
     # output_key stores structured output in session state for format_kitchen_response.
     output_key="kitchen_result",
+    mode="chat",
     # Tools are overridden in agent.py with McpToolset after this module loads.
     tools=[list_pending_orders, update_kitchen_order_status, get_all_orders],
 )

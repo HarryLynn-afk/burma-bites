@@ -172,6 +172,7 @@ Always fill in ALL fields of your output schema:
     # format_owner_response in agent.py reads this key and renders the prioritized
     # report in the order: alerts → sales → specials → recommendations.
     output_key="owner_result",
+    mode="chat",
     # Tools are overridden in agent.py with McpToolset after this module loads.
     # Listed here for IDE type-checking and direct unit test invocation.
     tools=[check_inventory, get_sales_summary, suggest_daily_special, restock_item],
