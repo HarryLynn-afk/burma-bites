@@ -37,8 +37,18 @@ class SharedDict(collections.UserDict):
         self.filename = os.path.abspath(filename)
         # Create directory automatically if it doesn't exist
         os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-        # Initialize file if it doesn't exist
-        if not os.path.exists(self.filename):
+        # Initialize file if it doesn't exist or is empty/default-empty
+        needs_init = not os.path.exists(self.filename)
+        if not needs_init:
+            try:
+                with open(self.filename, 'r') as f:
+                    content = f.read().strip()
+                    if not content or content == '{}':
+                        needs_init = True
+            except Exception:
+                needs_init = True
+
+        if needs_init:
             initial_data = default_factory() if default_factory else {}
             with open(self.filename, 'w') as f:
                 json.dump(initial_data, f)
