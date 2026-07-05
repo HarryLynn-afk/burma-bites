@@ -1,7 +1,7 @@
 [project]
 name = "burma-bites"
 version = "0.1.0"
-description = "Multi-agent restaurant ordering system for Burmese restaurants — built with ADK 2.0 Graph Workflow and MCP"
+description = "Burma Bites — AI agent system that replaces chaotic LINE group chat ordering for small Burmese restaurants in Bangkok. Built with ADK 2.0 multi-agent graph workflow, MCP server, and STRIDE security. Serves a community of ~400 Burmese students near Rangsit University."
 authors = [
     {name = "Kyaw Naing Lin"},
 ]

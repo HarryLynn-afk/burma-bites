@@ -1,12 +1,37 @@
 # 🍜 Burma Bites (ဗမာဘိုက်)
 
-**A multi-agent restaurant ordering system for small Burmese restaurants in Thailand.**
+**Burma Bites — AI agent system that replaces chaotic LINE group chat ordering for small Burmese restaurants in Bangkok. Built with ADK 2.0 multi-agent graph workflow, MCP server, and STRIDE security. Serves a community of ~400 Burmese students near Rangsit University.**
 
-Burma Bites is a reference implementation of an ADK 2.0 Graph Workflow connecting three
-specialized AI agents — Customer, Kitchen, and Owner — through a shared Model Context
-Protocol (MCP) server. It demonstrates production-ready agent patterns including
-multilingual NLU, tool isolation, proactive monitoring, input validation, and security
-guardrails.
+## Problem Statement
+
+Small Burmese restaurants near Rangsit University in Bangkok serve a community of ~400 Burmese students. There are 4-10 such businesses, each operating a LINE group with hundreds of members.
+
+**Their current workflow:**
+- Owner posts menu photo daily in LINE group
+- Customers DM the owner personally to place orders
+- Owner manually replies to each DM to confirm orders
+- Customer sends PromptPay/bank transfer payment slip screenshot
+- Owner manually verifies payment
+- Owner forwards order details to delivery person
+- Delivery person photographs delivered order
+- Delivery person sends photo to owner
+- Owner forwards delivery photo to customer
+
+**Problems this creates:**
+- During busy hours owner is overwhelmed with DMs → slow replies → customers frustrated or order elsewhere
+- Manual payment verification is error-prone and slow
+- No order tracking — owner manages everything in their head
+- Delivery confirmation chain is slow (3 manual forwards per order)
+- Customers have no idea if food has arrived or is still on the way — delivery person sends photo to owner, owner manually forwards to customer, if owner is busy customer is left completely in the dark, causing anxiety and repeat messages that make chaos worse
+- Owner has no visibility into daily sales, popular items, or low stock
+- No system survives when owner is unavailable
+
+**Why agents uniquely solve this vs a web app:**
+- Customers already use chat — agents meet them where they are
+- Natural language in Burmese, Thai, or English — no learning curve
+- Kitchen and owner coordination happens automatically
+- Owner gets proactive intelligence without checking dashboards
+- Order status is tracked automatically — no manual forwarding needed
 
 ---
 

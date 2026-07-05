@@ -1,5 +1,7 @@
 # Burma Bites — Deployment Guide
 
+**Burma Bites — AI agent system that replaces chaotic LINE group chat ordering for small Burmese restaurants in Bangkok. Built with ADK 2.0 multi-agent graph workflow, MCP server, and STRIDE security. Serves a community of ~400 Burmese students near Rangsit University.**
+
 A practical reference for running Burma Bites locally, configuring the MCP
 server, and preparing for production deployment.
 
