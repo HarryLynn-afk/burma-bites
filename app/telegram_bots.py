@@ -42,32 +42,44 @@ def extract_reply(raw_text: str, bot_role: str) -> str:
     Returns:
         A clean string suitable for sending directly to a Telegram user.
     """
-    try:
-        data = json.loads(raw_text)
-    except (json.JSONDecodeError, TypeError):
-        # Not JSON — return as-is (plain LLM text)
-        return raw_text
-
-    if bot_role == "customer":
-        # Customer agent schema: {"message_to_customer": "...", ...}
-        return data.get("message_to_customer", raw_text)
-
-    elif bot_role == "kitchen":
-        # Kitchen agent schema: {"summary": "...", ...}
-        return data.get("summary", raw_text)
-
-    elif bot_role == "owner":
-        # Owner agent may return sales summary + recommendations
-        parts = []
-        if "sales_summary" in data:
-            parts.append(data["sales_summary"])
-        if "recommendations" in data:
-            recs = data["recommendations"]
-            if isinstance(recs, list):
-                parts.append("\n".join(f"• {r}" for r in recs))
-            else:
-                parts.append(str(recs))
-        return "\n\n".join(parts) if parts else raw_text
+    cleaned = raw_text.strip()
+    
+    # Locate potential JSON boundaries to extract JSON from mixed text
+    start_idx = cleaned.find("{")
+    end_idx = cleaned.rfind("}")
+    
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        json_candidate = cleaned[start_idx:end_idx + 1]
+        try:
+            data = json.loads(json_candidate)
+            if isinstance(data, dict):
+                if bot_role == "customer" and "message_to_customer" in data:
+                    return data["message_to_customer"]
+                elif bot_role == "kitchen" and "summary" in data:
+                    return data["summary"]
+                elif bot_role == "owner":
+                    parts = []
+                    # Include alerts first (highest priority) if they exist
+                    if "alerts" in data and data["alerts"]:
+                        parts.append("**⚠️ ALERTS**\n" + "\n".join(f"  {a}" for a in data["alerts"]))
+                    # Include daily specials if they exist
+                    if "daily_specials" in data and data["daily_specials"]:
+                        parts.append("**🍽️ Today's Specials**\n" + "\n".join(f"  • {s}" for s in data["daily_specials"]))
+                    # Include sales summary
+                    if "sales_summary" in data and data["sales_summary"]:
+                        parts.append(f"**📊 Sales**: {data['sales_summary']}")
+                    # Include strategic recommendations
+                    if "recommendations" in data and data["recommendations"]:
+                        recs = data["recommendations"]
+                        if isinstance(recs, list):
+                            parts.append("**💡 Recommendations**\n" + "\n".join(f"  • {r}" for r in recs))
+                        else:
+                            parts.append(f"**💡 Recommendations**\n  • {recs}")
+                    
+                    if parts:
+                        return "\n\n".join(parts)
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     return raw_text
 
@@ -116,6 +128,13 @@ async def process_agent_message(update: Update, prefix: str, bot_role: str):
             # Skip intermediate events (tool calls, routing); only keep final agent replies
             if event.actions and event.actions.route:
                 continue
+            
+            # Skip intermediate agent nodes to avoid duplicate raw JSON + formatted text.
+            # We only want to capture the final output of the formatter nodes.
+            if event.node_info and event.node_info.path:
+                path = event.node_info.path.lower()
+                if "agent" in path and "format" not in path:
+                    continue
 
             chunk = "".join(
                 p.text for p in event.content.parts
