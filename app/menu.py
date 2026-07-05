@@ -23,13 +23,13 @@
 
 from __future__ import annotations
 
-import collections
+import collections.abc
 import fcntl
 import json
 import os
 from typing import Any
 
-class SharedDict(collections.UserDict):
+class SharedDict(collections.abc.MutableMapping):
     """A dictionary-like object that persists its data to a JSON file on disk.
     Uses file locking via fcntl to be process-safe and thread-safe.
     """
@@ -37,7 +37,6 @@ class SharedDict(collections.UserDict):
         self.filename = os.path.abspath(filename)
         # Create directory automatically if it doesn't exist
         os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-        super().__init__()
         # Initialize file if it doesn't exist or is empty/default-empty
         needs_init = not os.path.exists(self.filename)
         if not needs_init:
@@ -204,13 +203,7 @@ class SharedDict(collections.UserDict):
     def clear(self) -> None:
         self._save({})
 
-    @property
-    def data(self) -> dict[str, Any]:
-        return self._load()
 
-    @data.setter
-    def data(self, value: dict[str, Any]) -> None:
-        self._save(value)
 
 
 # ---------------------------------------------------------------------------
