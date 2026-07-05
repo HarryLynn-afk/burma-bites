@@ -133,6 +133,20 @@ uv run pytest tests/unit
 uv run pytest tests/unit tests/integration
 ```
 
+## Running with Telegram Bots
+
+Burma Bites supports running 3 separate Telegram bots concurrently, one for each agent role.
+
+```bash
+# 1. Add your 3 bot tokens to .env:
+# CUSTOMER_BOT_TOKEN=...
+# KITCHEN_BOT_TOKEN=...
+# OWNER_BOT_TOKEN=...
+
+# 2. Run the Telegram server (this starts all 3 bots using asyncio)
+uv run python -m app.run_telegram
+```
+
 ---
 
 ## Security Checks
