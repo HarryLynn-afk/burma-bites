@@ -5,6 +5,9 @@ import os
 import signal
 from dotenv import load_dotenv
 
+# MUST load environment variables BEFORE importing agent code
+load_dotenv()
+
 from app.telegram_bots import create_bot_app, customer_handler, kitchen_handler, owner_handler
 
 # Set up standard logging
@@ -18,8 +21,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 async def main():
-    # Ensure environment variables are loaded
-    load_dotenv()
+    # Ensure environment variables are loaded (already done at top of file)
     
     customer_token = os.getenv("CUSTOMER_BOT_TOKEN")
     kitchen_token = os.getenv("KITCHEN_BOT_TOKEN")
