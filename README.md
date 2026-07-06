@@ -152,6 +152,8 @@ uv run python -m app.run_telegram
 | 4 | **Proactive agent** — fires without user prompt | [`app/agents/owner_agent.py`](app/agents/owner_agent.py) + `proactive_stock_check` node in `agent.py` |
 | 5 | **STRIDE security guardrails** — input validation + Semgrep hook | [`app/mcp_server.py`](app/mcp_server.py) validation layer; [`.agents/CONTEXT.md`](.agents/CONTEXT.md); [`scripts/pre-commit.sh`](scripts/pre-commit.sh) |
 | 6 | **Multilingual NLU** — Burmese / Thai / English detection | [`app/agents/customer_agent.py`](app/agents/customer_agent.py) — language detection + reply policy |
+| 7 | **SharedDict** — cross-process state sharing via file-locked JSON | [`app/menu.py`](app/menu.py) — `SharedDict` class with `fcntl.flock` persistence |
+| 8 | **Antigravity IDE** — AI-assisted development throughout | Entire codebase architected, debugged, and documented via Google Antigravity |
 
 ---
 
@@ -193,16 +195,17 @@ burma-bites/
 
 ---
 
-## Screenshots
+## Demo
 
-_Screenshots will be added after the playground session._
+Burma Bites runs as three live Telegram bots. Try them:
 
-| View | Description |
-|------|-------------|
-| Playground UI | `http://127.0.0.1:8080/dev-ui/?app=app` after `agents-cli playground` |
-| Graph view | Workflow routing graph rendered in the ADK dev UI |
-| Customer order | Burmese-language order taking conversation |
-| Owner dashboard | Proactive inventory alerts and daily specials output |
+| Bot | Handle | Role |
+|-----|--------|------|
+| Customer Bot | `@burma_bites_customer_bot` | Browse menu, place orders, check status |
+| Kitchen Bot | `@burma_bites_kitchen_bot` | View order queue, update ticket status |
+| Owner Bot | `@burma_bites_owner_bot` | Inventory alerts, daily sales, restock |
+
+For a local developer UI, run `agents-cli playground` and open `http://127.0.0.1:8080/dev-ui/?app=app`.
 
 ---
 
