@@ -27,7 +27,7 @@ A traditional web app could technically solve this, but it introduces friction. 
 * **Zero Learning Curve:** Customers already use LINE and chat platforms. Agents meet the customers exactly where they already are. There are no new apps to download or user interfaces to learn.
 * **Multilingual Natural Language:** The Burmese student community primarily communicates in Burmese, with some preferring Thai or English. An AI agent seamlessly understands and replies in the customer's native language and script without requiring manual translation dropdowns.
 * **Automatic Coordination:** The system handles the flow between the customer and the kitchen automatically. No more manual forwarding of messages from the kitchen to the customer.
-* **Proactive Intelligence:** A traditional dashboard requires the owner to log in and check it. Our Owner Agent is *proactive*—it automatically analyzes sales and inventory, sending the owner a prioritized report of low-stock alerts and daily special recommendations without ever being asked.
+* **Proactive Intelligence:** A traditional dashboard requires the owner to log in and check it. The Owner Agent is *proactive*—it automatically analyzes sales and inventory, sending the owner a prioritized report of low-stock alerts and daily special recommendations without ever being asked.
 
 ---
 
@@ -82,7 +82,7 @@ This project implements all 6 core requirements from the Kaggle 5-Day AI Agents 
 
 1. **Agent / Multi-agent System (ADK):** `app/agent.py` wires together the `Workflow` graph, routing between three distinct `LlmAgent` instances (Customer, Kitchen, Owner).
 2. **MCP Server:** `app/mcp_server.py` implements a `FastMCP` server over `stdio` transport, centralizing 11 tools. Agents connect via `McpToolset` with specific `tool_filter` scopes to enforce least-privilege access.
-3. **Antigravity:** The entire system was collaboratively architected, debugged, and documented using the Antigravity agentic IDE environment.
+3. **Stateful Agent Memory:** `app/menu.py` implements `SharedDict` — a file-locked, cross-process persistent state layer enabling multi-turn order tracking across the full customer → kitchen → served lifecycle.
 4. **Security (STRIDE):** `app/mcp_server.py` implements strict input validation (regex constraints, max length limits) to prevent Tampering and DoS. `.agents/CONTEXT.md` enforces persistent security rules, and a Semgrep pre-commit hook ensures no hardcoded API keys.
 5. **Deployability:** `DEPLOYMENT.md` provides a comprehensive, reproducible 3-step local setup guide and covers the `agents-cli deploy` workflow for Cloud Run/Vertex AI.
 6. **Agent Skills:** The `agents-cli` framework is integrated heavily into the developer workflow, utilizing `agents-cli playground` for hot-reloading and testing, and `agents-cli eval` in the command references.
@@ -101,7 +101,7 @@ The current implementation successfully replaces the owner as the bottleneck.
 To make this a 100% complete end-to-end solution, future iterations will implement:
 1. **Payment Slip Verification:** Utilizing the Gemini API's multimodal capabilities to automatically parse and verify uploaded PromptPay and bank transfer screenshots before confirming orders.
 2. **Delivery Agent:** Adding a fourth agent role for delivery drivers to upload delivery confirmation photos, which the system will automatically forward to the customer.
-3. **Real Database:** Replacing the in-memory Python dictionaries (`app/menu.py`) with a persistent Cloud Firestore database for multi-instance consistency and fault tolerance.
+3. **Real Database:** Replacing the `SharedDict` file-based JSON persistence with Cloud Firestore for production-grade multi-instance consistency and fault tolerance.
 
 ---
 
