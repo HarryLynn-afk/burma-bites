@@ -5,6 +5,10 @@
 
 ---
 
+> **Burma Bites is a three-bot Telegram system** built on Google ADK 2.0 that fully automates restaurant operations for small Burmese eateries. A **Customer Bot** takes orders in Burmese, Thai, or English. A **Kitchen Bot** manages the ticket lifecycle. An **Owner Bot** proactively alerts the owner to low stock and summarizes daily revenue — without being asked. Together, they replace a chaotic manual workflow entirely run through LINE group chat DMs.
+
+---
+
 ## Problem Statement
 
 Near Rangsit University in Bangkok, there is a community of approximately 400 Burmese students. Serving this community are 4 to 10 small Burmese restaurant businesses, all of which operate primarily through LINE group chats with hundreds of members.
