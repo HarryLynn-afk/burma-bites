@@ -205,6 +205,20 @@ Burma Bites runs as three live Telegram bots. Try them:
 | Kitchen Bot | `@burma_bites_kitchen_bot` | View order queue, update ticket status |
 | Owner Bot | `@burma_bites_owner_bot` | Inventory alerts, daily sales, restock |
 
+### Screenshots
+
+**Customer Bot** — Natural language ordering in Burmese/English, order confirmation and live status tracking:
+
+![Customer Bot demo](screenshots/customer_bot.png)
+
+**Kitchen Bot** — View the pending queue, batch-mark orders as preparing, mark individual orders served:
+
+![Kitchen Bot demo](screenshots/kitchen_bot.png)
+
+**Owner Bot** — Proactive low-stock alert, sales summary, today's specials, and recommendations fired without prompting:
+
+![Owner Bot demo](screenshots/owner_bot.png)
+
 For a local developer UI, run `agents-cli playground` and open `http://127.0.0.1:8080/dev-ui/?app=app`.
 
 ---
